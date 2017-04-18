@@ -240,3 +240,4 @@ ModelManifest.xml
 
 # FAKE - F# Make
 .fake/
+/PyTF_Playground/__pycache__/input_data.cpython-35.pyc
