@@ -9,8 +9,8 @@ LEARNING_RATE = 0.001 #Set the learning rate (Default 0.001)
 mnist = input_data.read_data_sets("D:/TensorFlow/mnist-data", one_hot=True)
 
 #Define how many nodes are in each hidden layer
-n_nodes_hl1 = 1000
-n_nodes_hl2 = 1000
+n_nodes_hl1 = 500
+n_nodes_hl2 = 500
 n_nodes_hl3 = 500
 
 n_classes = 10 #There are 10 numbers to process, 0-9

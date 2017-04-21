@@ -1,48 +1,109 @@
 import tensorflow as tf
-import numpy as np
+#from tensorflow.examples.tutorials.mnist import input_data
 
-#Parameters for the calculation
-NUM_TRAINING_SETS = 10000
-NUM_TEST_SETS = 1000
+LEARNING_RATE = 0.002
+N_NODES = [8]
 
-LEARNING_RATE = 0.001
-ERR_THRESH = 1E-5
-MAX_ITER = 10000
+TRAIN_MAX_ITER = 10000
+TRAIN_ERR_THRESH = 1E-8
 
-N_NODES_H1 = 500
-N_NODES_H2 = 500
-N_NODES_H3 = 500
+INPUT_SIZE = 3
+OUTPUT_SIZE = 3
 
-#Populate the training set with x,y,z data
-print("Populating training input...")
+inputvals  = [[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1], [1, 0, 0], [1, 0, 1],
+              [1, 1, 0], [1, 1, 1]]
+targetvals = [[0, 0, 1], [0, 1, 0], [0, 1, 1], [1, 0, 0], [1, 0, 1], [1, 1, 0], [1, 1, 1], [0, 0, 0]]
+#targetvals = [[0], [0], [0], [1], [0], [1], [1], [0]]
+testinputs  = [[0, 1, 0], [0, 1, 1], [0, 0, 1], [1, 1, 1], [1, 0, 1],
+               [1, 0, 0], [0, 0, 0], [1, 1, 0]]
+testtargets = [[0, 1, 1], [1, 0, 0], [0, 1, 0], [0, 0, 0], [1, 1, 0], [1, 0, 1], [0, 0, 1], [1, 1, 1]]
+#testtargets = [[0], [1], [0], [1], [1], [0], [1], [0]]
 
-training_input = [[0 for x in range(3)] for y in range(NUM_TRAINING_SETS)]
-training_output = [[1] for y in range(NUM_TRAINING_SETS)]
+x = tf.placeholder(tf.float32, shape=[None, INPUT_SIZE], name='x')
+y = tf.placeholder(tf.float32, shape=[None, OUTPUT_SIZE], name='y')
 
-for i in range(NUM_TRAINING_SETS):
-	training_input[i] = [np.random.uniform(-30.0, 30.0), np.random.uniform(-30.0, 30.0), np.random.uniform(-30.0, 30.0)]
-	training_output[i] = [np.sin(training_input[i][0]) + np.cos(training_input[i][1]) + np.tan(training_input[i][1])]
+def build_neural_network(data):
+	input_layer = {'weights': tf.Variable(tf.truncated_normal([INPUT_SIZE, N_NODES[0]])),
+				   'biases': tf.Variable(tf.truncated_normal([N_NODES[0]]))}
+	li = tf.add(tf.matmul(data, input_layer['weights']), input_layer['biases'])
+	li = tf.nn.relu(li)
 
-test_input = [[0 for x in range(3)] for y in range(NUM_TEST_SETS)]
-test_output = [[1] for y in range(NUM_TEST_SETS)]
+	hidden_layer_list = [li]
+	for nodecount in range(len(N_NODES) - 1):
+		hidden_layer = {'weights': tf.Variable(tf.truncated_normal([N_NODES[nodecount], N_NODES[nodecount + 1]])),
+						'biases': tf.Variable(tf.truncated_normal([N_NODES[nodecount + 1]]))}
+		lh = tf.add(tf.matmul(hidden_layer_list[len(hidden_layer_list) - 1], hidden_layer['weights']), hidden_layer['biases'])
+		tf.nn.relu(lh)
+		hidden_layer_list.append(lh)
 
-for i in range(NUM_TEST_SETS):
-	test_input[i] = [np.random.uniform(-30.0, 30.0), np.random.uniform(-30.0, 30.0), np.random.uniform(-30.0, 30.0)]
-	test_output[i] = [np.sin(training_input[i][0]) + np.cos(training_input[i][1]) + np.tan(training_input[i][1])]
+	output_layer = {'weights': tf.Variable(tf.truncated_normal([N_NODES[len(N_NODES) - 1], OUTPUT_SIZE])),
+				    'biases': tf.Variable(tf.truncated_normal([OUTPUT_SIZE]))}
 
-print("Done!")
+	output = tf.add(tf.matmul(hidden_layer_list[len(hidden_layer_list) - 1], output_layer['weights']), output_layer['biases'])
 
-#Setup initial TF stuff
-x = tf.placeholder('float', shape=[None, 3], name='x')
-y = tf.placeholder('float', shape=[None, 1], name='y_')
+	return output
 
-with tf.name_scope('layer1'):
-	W_fc1 = tf.truncated_normal([NUM_TRAINING_SETS, N_NODES_H1], mean=0.5, stddev=0.707)
-	W_fc1 = tf.Variable(W_fc1, name='W_fc1')
+def train_neural_network(x):
+	
+	'''
+	nnsetup = build_neural_network(x)
+	results = tf.sigmoid(nnsetup, name='results')
+	output = tf.nn.softmax(nnsetup)
+	loss = -tf.reduce_sum(y*tf.log(output))
+	optimizer = tf.train.GradientDescentOptimizer(LEARNING_RATE).minimize(loss)
+	'''
+	
+	prediction = build_neural_network(x)
+	results = tf.sigmoid(prediction, name='results')
+	#loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=prediction, labels=y))
+	sm = tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=y)
+	loss = tf.reduce_mean(sm)
+	optimizer = tf.train.AdamOptimizer(LEARNING_RATE).minimize(loss)
+	
+	with tf.Session() as sess:
+		sess.run(tf.global_variables_initializer())
+		for i in range(TRAIN_MAX_ITER):
+			optimizer.run(feed_dict={x:inputvals, y:targetvals})
+			cost = sess.run(loss, feed_dict={x:inputvals, y:targetvals})
+			if(i % 100 == 0):
+				print("Step: %d, cost: %g"%(i, cost))
+				if(cost < TRAIN_ERR_THRESH):
+					break
 
-	b_fc1 = tf.truncated_normal([N_NODES_H1], mean=0.5, stddev=0.707)
-	b_fc1 = tf.Variable(b_fc1, name='b_fc1')
+		for i in range(len(testinputs)-1):
+			res = sess.run(results, feed_dict={x: [testinputs[i]]})
+			print("Input: ", testinputs[i])
+			for j in range(OUTPUT_SIZE):
+				print("(", testtargets[i][j], "):", res[0][j])
 
-	h_fc1 = tf.nn.relu(tf.add(tf.matmul(x, W_fc1), b_fc1))
+	'''
+	prediction = build_neural_network(x)
+	results = tf.sigmoid(prediction, name='results')
+	cost = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=prediction,labels=y)) #Get the difference between the prediction and the known value
+	#cost = tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=y)
+	#cost = tf.reduce_sum(cost)
 
+	optimizer = tf.train.RMSPropOptimizer(0.25, momentum=0.5).minimize(cost)
+	#optimizer = tf.train.GradientDescentOptimizer(LEARNING_RATE).minimize(cost)
+	#Cycles of feed forward + back propagation
 
+	with tf.Session() as sess:
+		sess.run(tf.global_variables_initializer()) #Start the TF session
+
+		for i in range(TRAIN_MAX_ITER + 1):
+			train_error = cost.eval(feed_dict={x: inputvals, y:targetvals})
+			print("Step %d, error %g"%(i, train_error))
+			if train_error < TRAIN_ERR_THRESH:
+				break
+			sess.run(optimizer, feed_dict={x: inputvals, y: targetvals})		
+		print("Done training!")
+
+		print("INPUT:\tOUTPUT:\tEXPECTED:\tTEST:")
+		for i in range(len(testinputs)-1):
+			res = sess.run(results, feed_dict={x: [testinputs[i]]})
+			testcond = "FAIL"
+			if((round(res[0][0]) == testtargets[i][0]) and (round(res[0][0]) == testtargets[i][0]) and (round(res[0][0]) == testtargets[i][0])):
+				testcond = "PASS"
+			print('%i %i %i\t%i\t%i\t\t%s'%(testinputs[i][0],testinputs[i][1],testinputs[i][2], round(res[0][0]), testtargets[i][0], testcond))
+	'''
+train_neural_network(x)

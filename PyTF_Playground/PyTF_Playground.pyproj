@@ -25,6 +25,9 @@
     <Compile Include="bincounter.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="junk.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="mnistRefac.py">
       <SubType>Code</SubType>
     </Compile>
