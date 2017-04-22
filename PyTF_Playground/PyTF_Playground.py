@@ -1,43 +1,68 @@
 import tensorflow as tf
+import random
+import matplotlib.pyplot as plt
+import numpy as np
 #from tensorflow.examples.tutorials.mnist import input_data
 
-LEARNING_RATE = 0.002
-N_NODES = [8]
+LEARNING_RATE = 0.25
+N_NODES = [100]
 
-TRAIN_MAX_ITER = 10000
+TRAIN_MAX_ITER = 5000
 TRAIN_ERR_THRESH = 1E-8
 
-INPUT_SIZE = 3
-OUTPUT_SIZE = 3
+INPUT_SIZE = 1
+OUTPUT_SIZE = 1
 
-inputvals  = [[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1], [1, 0, 0], [1, 0, 1],
-              [1, 1, 0], [1, 1, 1]]
-targetvals = [[0, 0, 1], [0, 1, 0], [0, 1, 1], [1, 0, 0], [1, 0, 1], [1, 1, 0], [1, 1, 1], [0, 0, 0]]
-#targetvals = [[0], [0], [0], [1], [0], [1], [1], [0]]
-testinputs  = [[0, 1, 0], [0, 1, 1], [0, 0, 1], [1, 1, 1], [1, 0, 1],
-               [1, 0, 0], [0, 0, 0], [1, 1, 0]]
-testtargets = [[0, 1, 1], [1, 0, 0], [0, 1, 0], [0, 0, 0], [1, 1, 0], [1, 0, 1], [0, 0, 1], [1, 1, 1]]
-#testtargets = [[0], [1], [0], [1], [1], [0], [1], [0]]
+train_in = []
+train_out = []
+test_in = []
+test_out = []
+
+xtest = []
+ytest = []
+
+for i in range (1000):
+	temp = random.random() * (2.0 * np.pi)
+	train_in.append([temp])
+	train_out.append([np.sin(temp) + np.cos(temp)])
+for i in range(50):
+	temp = random.random() * (2.0 * np.pi)
+	xtest.append(temp)
+xtest.sort()
+for i in range(50):
+	test_in.append([xtest[i]])
+	test_out.append([np.sin(xtest[i]) + np.cos(xtest[i])])
+	ytest.append(np.sin(xtest[i]) + np.cos(xtest[i]))
+'''
+train_in  = [[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1], [1, 0, 0], [1, 0, 1],
+			  [1, 1, 0], [1, 1, 1]]
+train_out = [[0, 0, 1], [0, 1, 0], [0, 1, 1], [1, 0, 0], [1, 0, 1], [1, 1, 0], [1, 1, 1], [0, 0, 0]]
+#train_out = [[0], [0], [0], [1], [0], [1], [1], [0]]
+test_in  = [[0, 1, 0], [0, 1, 1], [0, 0, 1], [1, 1, 1], [1, 0, 1],
+			   [1, 0, 0], [0, 0, 0], [1, 1, 0]]
+test_out = [[0, 1, 1], [1, 0, 0], [0, 1, 0], [0, 0, 0], [1, 1, 0], [1, 0, 1], [0, 0, 1], [1, 1, 1]]
+#test_out = [[0], [1], [0], [1], [1], [0], [1], [0]]
+'''
 
 x = tf.placeholder(tf.float32, shape=[None, INPUT_SIZE], name='x')
 y = tf.placeholder(tf.float32, shape=[None, OUTPUT_SIZE], name='y')
 
 def build_neural_network(data):
-	input_layer = {'weights': tf.Variable(tf.truncated_normal([INPUT_SIZE, N_NODES[0]])),
-				   'biases': tf.Variable(tf.truncated_normal([N_NODES[0]]))}
+	input_layer = {'weights': tf.Variable(tf.random_normal([INPUT_SIZE, N_NODES[0]])),
+				   'biases': tf.Variable(tf.random_normal([N_NODES[0]]))}
 	li = tf.add(tf.matmul(data, input_layer['weights']), input_layer['biases'])
 	li = tf.nn.relu(li)
 
 	hidden_layer_list = [li]
 	for nodecount in range(len(N_NODES) - 1):
-		hidden_layer = {'weights': tf.Variable(tf.truncated_normal([N_NODES[nodecount], N_NODES[nodecount + 1]])),
-						'biases': tf.Variable(tf.truncated_normal([N_NODES[nodecount + 1]]))}
+		hidden_layer = {'weights': tf.Variable(tf.random_normal([N_NODES[nodecount], N_NODES[nodecount + 1]])),
+						'biases': tf.Variable(tf.random_normal([N_NODES[nodecount + 1]]))}
 		lh = tf.add(tf.matmul(hidden_layer_list[len(hidden_layer_list) - 1], hidden_layer['weights']), hidden_layer['biases'])
 		tf.nn.relu(lh)
 		hidden_layer_list.append(lh)
 
-	output_layer = {'weights': tf.Variable(tf.truncated_normal([N_NODES[len(N_NODES) - 1], OUTPUT_SIZE])),
-				    'biases': tf.Variable(tf.truncated_normal([OUTPUT_SIZE]))}
+	output_layer = {'weights': tf.Variable(tf.random_normal([N_NODES[len(N_NODES) - 1], OUTPUT_SIZE])),
+					'biases': tf.Variable(tf.random_normal([OUTPUT_SIZE]))}
 
 	output = tf.add(tf.matmul(hidden_layer_list[len(hidden_layer_list) - 1], output_layer['weights']), output_layer['biases'])
 
@@ -55,27 +80,28 @@ def train_neural_network(x):
 	
 	prediction = build_neural_network(x)
 	results = tf.sigmoid(prediction, name='results')
+
 	#loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=prediction, labels=y))
 	sm = tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=y)
-	loss = tf.reduce_mean(sm)
+	loss = tf.reduce_mean(tf.square(prediction - train_out))
 	optimizer = tf.train.AdamOptimizer(LEARNING_RATE).minimize(loss)
 	
 	with tf.Session() as sess:
 		sess.run(tf.global_variables_initializer())
 		for i in range(TRAIN_MAX_ITER):
-			optimizer.run(feed_dict={x:inputvals, y:targetvals})
-			cost = sess.run(loss, feed_dict={x:inputvals, y:targetvals})
+			optimizer.run(feed_dict={x:train_in, y:train_out})
+			cost = sess.run(loss, feed_dict={x:train_in, y:train_out})
 			if(i % 100 == 0):
 				print("Step: %d, cost: %g"%(i, cost))
 				if(cost < TRAIN_ERR_THRESH):
 					break
 
-		for i in range(len(testinputs)-1):
-			res = sess.run(results, feed_dict={x: [testinputs[i]]})
-			print("Input: ", testinputs[i])
-			for j in range(OUTPUT_SIZE):
-				print("(", testtargets[i][j], "):", res[0][j])
-
+		ycalc = prediction.eval({x:test_in}, sess)
+	
+		correctPlot = plt.plot(xtest, ytest)
+		calcPlot = plt.plot(test_in, ycalc)
+		plt.legend([correctPlot, calcPlot], ["corr","calc"])
+		plt.show()
 	'''
 	prediction = build_neural_network(x)
 	results = tf.sigmoid(prediction, name='results')
