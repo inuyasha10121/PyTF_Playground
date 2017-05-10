@@ -1,16 +1,20 @@
 import tensorflow as tf
 import random
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
+import scipy.interpolate as interp
 #from tensorflow.examples.tutorials.mnist import input_data
 
+TEST_RES = 50
+
 LEARNING_RATE = 0.25
-N_NODES = [100]
+N_NODES = [50]
 
-TRAIN_MAX_ITER = 5000
-TRAIN_ERR_THRESH = 1E-8
+TRAIN_MAX_ITER = 10000
+TRAIN_ERR_THRESH = 1E-3
 
-INPUT_SIZE = 1
+INPUT_SIZE = 2
 OUTPUT_SIZE = 1
 
 train_in = []
@@ -23,16 +27,18 @@ ytest = []
 
 for i in range (1000):
 	temp = random.random() * (2.0 * np.pi)
-	train_in.append([temp])
-	train_out.append([np.sin(temp) + np.cos(temp)])
+	temp2 = random.random() * 2.0 * np.pi
+	train_in.append([temp, temp2])
+	train_out.append([np.sin(temp * np.cos(temp2))])
 for i in range(50):
 	temp = random.random() * (2.0 * np.pi)
-	xtest.append(temp)
-xtest.sort()
+	temp2 = random.random() * 2.0 * np.pi
+	xtest.append([temp, temp2])
+xtest.sort(key=lambda x: x[0])
 for i in range(50):
-	test_in.append([xtest[i]])
-	test_out.append([np.sin(xtest[i]) + np.cos(xtest[i])])
-	ytest.append(np.sin(xtest[i]) + np.cos(xtest[i]))
+	test_in.append(xtest[i])
+	test_out.append([np.sin(xtest[i][0] * np.cos(xtest[i][1]))])
+	ytest.append(np.sin(xtest[i][0] * np.cos(xtest[i][1])))
 '''
 train_in  = [[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1], [1, 0, 0], [1, 0, 1],
 			  [1, 1, 0], [1, 1, 1]]
@@ -69,67 +75,36 @@ def build_neural_network(data):
 	return output
 
 def train_neural_network(x):
-	
-	'''
-	nnsetup = build_neural_network(x)
-	results = tf.sigmoid(nnsetup, name='results')
-	output = tf.nn.softmax(nnsetup)
-	loss = -tf.reduce_sum(y*tf.log(output))
-	optimizer = tf.train.GradientDescentOptimizer(LEARNING_RATE).minimize(loss)
-	'''
-	
+		
 	prediction = build_neural_network(x)
 	results = tf.sigmoid(prediction, name='results')
+	
+	sess = tf.Session()
 
 	#loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=prediction, labels=y))
-	sm = tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=y)
-	loss = tf.reduce_mean(tf.square(prediction - train_out))
+	#sm = tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=y)
+	#sm1 = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=prediction)
+	#loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=prediction))
+	loss = tf.reduce_mean(tf.abs((prediction - train_out)))
 	optimizer = tf.train.AdamOptimizer(LEARNING_RATE).minimize(loss)
 	
-	with tf.Session() as sess:
-		sess.run(tf.global_variables_initializer())
-		for i in range(TRAIN_MAX_ITER):
-			optimizer.run(feed_dict={x:train_in, y:train_out})
-			cost = sess.run(loss, feed_dict={x:train_in, y:train_out})
-			if(i % 100 == 0):
-				print("Step: %d, cost: %g"%(i, cost))
-				if(cost < TRAIN_ERR_THRESH):
-					break
-
-		ycalc = prediction.eval({x:test_in}, sess)
-	
-		correctPlot = plt.plot(xtest, ytest)
-		calcPlot = plt.plot(test_in, ycalc)
-		plt.legend([correctPlot, calcPlot], ["corr","calc"])
-		plt.show()
-	'''
-	prediction = build_neural_network(x)
-	results = tf.sigmoid(prediction, name='results')
-	cost = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=prediction,labels=y)) #Get the difference between the prediction and the known value
-	#cost = tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=y)
-	#cost = tf.reduce_sum(cost)
-
-	optimizer = tf.train.RMSPropOptimizer(0.25, momentum=0.5).minimize(cost)
-	#optimizer = tf.train.GradientDescentOptimizer(LEARNING_RATE).minimize(cost)
-	#Cycles of feed forward + back propagation
-
-	with tf.Session() as sess:
-		sess.run(tf.global_variables_initializer()) #Start the TF session
-
-		for i in range(TRAIN_MAX_ITER + 1):
-			train_error = cost.eval(feed_dict={x: inputvals, y:targetvals})
-			print("Step %d, error %g"%(i, train_error))
-			if train_error < TRAIN_ERR_THRESH:
+	sess.run(tf.global_variables_initializer())
+	for i in range(TRAIN_MAX_ITER):
+		optimizer.run(feed_dict={x:train_in, y:train_out}, session=sess)
+		cost = sess.run(loss, feed_dict={x:train_in, y:train_out})
+		if(i % 100 == 0):
+			print("Step: %d, cost: %g"%(i, cost))
+			if(cost < TRAIN_ERR_THRESH):
 				break
-			sess.run(optimizer, feed_dict={x: inputvals, y: targetvals})		
-		print("Done training!")
 
-		print("INPUT:\tOUTPUT:\tEXPECTED:\tTEST:")
-		for i in range(len(testinputs)-1):
-			res = sess.run(results, feed_dict={x: [testinputs[i]]})
-			testcond = "FAIL"
-			if((round(res[0][0]) == testtargets[i][0]) and (round(res[0][0]) == testtargets[i][0]) and (round(res[0][0]) == testtargets[i][0])):
-				testcond = "PASS"
-			print('%i %i %i\t%i\t%i\t\t%s'%(testinputs[i][0],testinputs[i][1],testinputs[i][2], round(res[0][0]), testtargets[i][0], testcond))
-	'''
+	testvals = prediction.eval({x:test_in}, sess)
+	zvals = [row[0] for row in testvals]
+	xvals = [row[0] for row in xtest]
+	yvals = [row[1] for row in xtest]
+
+	plt.plot(xvals, zvals)
+	plt.plot(xvals, ytest)
+
+	plt.show()
+		
 train_neural_network(x)
