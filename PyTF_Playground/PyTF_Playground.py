@@ -1,15 +1,22 @@
-import tensorflow as tf
-import random
-import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
 import numpy as np
-import scipy.interpolate as interp
-#from tensorflow.examples.tutorials.mnist import input_data
+import math
+import random
+import sys
 
+def test_func(a, b):
+	return np.sin(a * np.cos(b))
+	#return np.sin(a)
+
+def error_func(a, b):
+	return abs(a - b)
+
+TRAIN_RES = 1000
 TEST_RES = 50
 
-LEARNING_RATE = 0.25
-N_NODES = [50]
+LEARNING_RATE = 0.1
+N_NODES = [100]
 
 TRAIN_MAX_ITER = 10000
 TRAIN_ERR_THRESH = 1E-3
@@ -22,23 +29,32 @@ train_out = []
 test_in = []
 test_out = []
 
-xtest = []
-ytest = []
+plotx = []
+ploty = []
+plotz = []
 
-for i in range (1000):
+
+test_step = (2.0 * np.pi) / TEST_RES
+for j in range(TEST_RES):
+	plotx.append([])
+	ploty.append([])
+	plotz.append([])
+	for i in range(TEST_RES):
+		plotx[j].append(i * test_step)
+		ploty[j].append(j * test_step)
+		plotz[j].append(test_func(i * test_step, j * test_step))
+
+for i in range (TRAIN_RES):
 	temp = random.random() * (2.0 * np.pi)
-	temp2 = random.random() * 2.0 * np.pi
+	temp2 = random.random() * (2.0 * np.pi)
 	train_in.append([temp, temp2])
-	train_out.append([np.sin(temp * np.cos(temp2))])
-for i in range(50):
-	temp = random.random() * (2.0 * np.pi)
-	temp2 = random.random() * 2.0 * np.pi
-	xtest.append([temp, temp2])
-xtest.sort(key=lambda x: x[0])
-for i in range(50):
-	test_in.append(xtest[i])
-	test_out.append([np.sin(xtest[i][0] * np.cos(xtest[i][1]))])
-	ytest.append(np.sin(xtest[i][0] * np.cos(xtest[i][1])))
+	train_out.append([test_func(temp, temp2)])
+
+for j in range(TEST_RES):
+	for i in range(TEST_RES):
+		test_in.append([plotx[i][j], ploty[i][j]])
+		test_out.append([test_func(plotx[i][j], ploty[i][j])])
+
 '''
 train_in  = [[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1], [1, 0, 0], [1, 0, 1],
 			  [1, 1, 0], [1, 1, 1]]
@@ -49,6 +65,9 @@ test_in  = [[0, 1, 0], [0, 1, 1], [0, 0, 1], [1, 1, 1], [1, 0, 1],
 test_out = [[0, 1, 1], [1, 0, 0], [0, 1, 0], [0, 0, 0], [1, 1, 0], [1, 0, 1], [0, 0, 1], [1, 1, 1]]
 #test_out = [[0], [1], [0], [1], [1], [0], [1], [0]]
 '''
+
+#Start all the Tensorflow stuff
+import tensorflow as tf
 
 x = tf.placeholder(tf.float32, shape=[None, INPUT_SIZE], name='x')
 y = tf.placeholder(tf.float32, shape=[None, OUTPUT_SIZE], name='y')
@@ -86,7 +105,8 @@ def train_neural_network(x):
 	#sm1 = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=prediction)
 	#loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=prediction))
 	loss = tf.reduce_mean(tf.abs((prediction - train_out)))
-	optimizer = tf.train.AdamOptimizer(LEARNING_RATE).minimize(loss)
+	optimizer = tf.train.AdamOptimizer().minimize(loss)
+	#optimizer = tf.train.RMSPropOptimizer(0.1).minimize(loss)
 	
 	sess.run(tf.global_variables_initializer())
 	for i in range(TRAIN_MAX_ITER):
@@ -98,13 +118,30 @@ def train_neural_network(x):
 				break
 
 	testvals = prediction.eval({x:test_in}, sess)
-	zvals = [row[0] for row in testvals]
-	xvals = [row[0] for row in xtest]
-	yvals = [row[1] for row in xtest]
 
-	plt.plot(xvals, zvals)
-	plt.plot(xvals, ytest)
+	calcz = []
+	for j in range(TEST_RES):
+		calcz.append([])
+		for i in range(TEST_RES):
+			calcz[j].append(testvals[(i * TEST_RES) + j][0])
+	
+	#Calculate average error
+	avgerror = 0.0
+	for j in range(TEST_RES):
+		for i in range(TEST_RES):
+			cz = calcz[i][j]
+			pz = plotz[i][j]
+			currerror = error_func(cz, pz)
 
+			avgerror += currerror
+	avgerror /= (TEST_RES * TEST_RES)
+	print("Average test distance error: %f"%(avgerror))
+
+	fig = plt.figure()
+	ax = fig.add_subplot(111, projection='3d')
+	ax.plot_wireframe(plotx, ploty, plotz, rstride=5, cstride=5, color='g', label='Corr')
+	ax.plot_wireframe(plotx, ploty, calcz, rstride=5, cstride=5, color='r', label='Calc')
+	ax.legend()
 	plt.show()
 		
 train_neural_network(x)
