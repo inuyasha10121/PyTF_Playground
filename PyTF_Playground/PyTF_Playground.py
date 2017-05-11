@@ -12,6 +12,9 @@ def test_func(a, b):
 def error_func(a, b):
 	return abs(a - b)
 
+xrange = [-2.0 * np.pi, 2.0 * np.pi]
+yrange = [-2.0 * np.pi, 2.0 * np.pi]
+
 TRAIN_RES = 1000
 TEST_RES = 50
 
@@ -33,22 +36,25 @@ plotx = []
 ploty = []
 plotz = []
 
+xscope = xrange[1] - xrange[0]
+yscope = yrange[1] - yrange[0]
 
-test_step = (2.0 * np.pi) / TEST_RES
+xstep = xscope / TEST_RES
+ystep = yscope / TEST_RES
 for j in range(TEST_RES):
 	plotx.append([])
 	ploty.append([])
 	plotz.append([])
 	for i in range(TEST_RES):
-		plotx[j].append(i * test_step)
-		ploty[j].append(j * test_step)
-		plotz[j].append(test_func(i * test_step, j * test_step))
+		plotx[j].append(xrange[0] + (i * xstep))
+		ploty[j].append(yrange[0] + (j * ystep))
+		plotz[j].append(test_func(xrange[0] + (i * xstep), yrange[0] + (j * ystep)))
 
 for i in range (TRAIN_RES):
-	temp = random.random() * (2.0 * np.pi)
-	temp2 = random.random() * (2.0 * np.pi)
-	train_in.append([temp, temp2])
-	train_out.append([test_func(temp, temp2)])
+	temp = random.random() * xscope
+	temp2 = random.random() * yscope
+	train_in.append([xrange[0] + temp, yrange[0] + temp2])
+	train_out.append([test_func(xrange[0] + temp, yrange[0] + temp2)])
 
 for j in range(TEST_RES):
 	for i in range(TEST_RES):
