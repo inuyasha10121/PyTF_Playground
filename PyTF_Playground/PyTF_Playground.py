@@ -5,15 +5,22 @@ import math
 import random
 import sys
 
-def test_func(a, b):
-	return np.sin(a * np.cos(b))
+def test_func(posx, posy, chargex, chargey, chargeval):
+	dist = math.sqrt((posx - chargex)**2 + (posy-chargey)**2)
+	return chargeval / dist
+	#return np.sin(posx * np.cos(posy))
 	#return np.sin(a)
 
 def error_func(a, b):
 	return abs(a - b)
 
-xrange = [-2.0 * np.pi, 2.0 * np.pi]
-yrange = [-2.0 * np.pi, 2.0 * np.pi]
+chargex = -2.0
+chargey = -2.0
+chargeval = 1.0
+exclusiondist = 0.5
+
+xrange = [-3.0, 3.0]
+yrange = [-3.0, 3.0]
 
 TRAIN_RES = 1000
 TEST_RES = 50
@@ -46,20 +53,34 @@ for j in range(TEST_RES):
 	ploty.append([])
 	plotz.append([])
 	for i in range(TEST_RES):
-		plotx[j].append(xrange[0] + (i * xstep))
-		ploty[j].append(yrange[0] + (j * ystep))
-		plotz[j].append(test_func(xrange[0] + (i * xstep), yrange[0] + (j * ystep)))
+		xpos = xrange[0] + (i * xstep)
+		ypos = yrange[0] + (j * ystep)
+		plotx[j].append(xpos)
+		ploty[j].append(ypos)
+		test_in.append([xpos, ypos])
+		
+		dist = math.sqrt((xpos - chargex)**2 + (ypos-chargex)**2)
+		if dist > exclusiondist:
+			plotz[j].append(test_func(xpos, ypos, chargex, chargey, chargeval))
+			test_out.append([test_func(xpos, ypos, chargex, chargey, chargeval)])
+		else:
+			plotz[j].append(0.0)
+			test_out.append([0.0])
+
+
 
 for i in range (TRAIN_RES):
-	temp = random.random() * xscope
-	temp2 = random.random() * yscope
-	train_in.append([xrange[0] + temp, yrange[0] + temp2])
-	train_out.append([test_func(xrange[0] + temp, yrange[0] + temp2)])
+	xpos = xrange[0] + (random.random() * xscope)
+	ypos = yrange[0] + (random.random() * yscope)
+	train_in.append([xpos, ypos])
 
-for j in range(TEST_RES):
-	for i in range(TEST_RES):
-		test_in.append([plotx[i][j], ploty[i][j]])
-		test_out.append([test_func(plotx[i][j], ploty[i][j])])
+	dist = math.sqrt((xpos - chargex)**2 + (ypos-chargex)**2)
+	if dist > exclusiondist:
+		train_out.append([test_func(xpos, ypos, chargex, chargey, chargeval)])
+	else:
+		train_out.append([0.0])
+
+	
 
 '''
 train_in  = [[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1], [1, 0, 0], [1, 0, 1],
@@ -111,6 +132,7 @@ def train_neural_network(x):
 	#sm1 = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=prediction)
 	#loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=prediction))
 	loss = tf.reduce_mean(tf.abs((prediction - train_out)))
+
 	optimizer = tf.train.AdamOptimizer().minimize(loss)
 	#optimizer = tf.train.RMSPropOptimizer(0.1).minimize(loss)
 	
@@ -129,7 +151,7 @@ def train_neural_network(x):
 	for j in range(TEST_RES):
 		calcz.append([])
 		for i in range(TEST_RES):
-			calcz[j].append(testvals[(i * TEST_RES) + j][0])
+			calcz[j].append(testvals[(j * TEST_RES) + i][0])
 	
 	#Calculate average error
 	avgerror = 0.0
