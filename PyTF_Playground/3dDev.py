@@ -8,31 +8,65 @@ import sys
 def test_func(in_x, in_y, ori_x, ori_y):
 	return (np.sin(in_x - ori_x) + np.cos(in_y - ori_y))
 
+#excdist: Exclusion radius around each charged particle
+#posx: Field point x position
+#posy: Field point y position
+#particles: List of charged particles( [[chargepos_x, chargepos_y, charge_str],...] )
+def multichargefieldstrength(excdist, posx, posy, particles):
+	fieldx = 0.0
+	fieldy = 0.0
+	for particle in particles: #Cycle through each particle
+		distx = posx - particle[0]
+		disty = posy - particle[1]
+		dist = math.sqrt(distx**2 + disty**2) #Get the distance from the point to particle in question
+		if(dist < excdist): #If we are ever in an exclusion zone, return 0 to avoid massive field strengths
+			return 0.0
+		angle = np.arctan(disty/distx) #Calculate the key angle of the field vector
+		if(distx < 0.0): #If we are in the negative x, we need to tweak the angle
+			angle += np.pi
+		field = particle[2] / dist #Calculate the field strength of the vector (NOTE: This might need to be made negative, depending on how the math works out)
+		#Add the vector components to the overall field strength components
+		fieldx += np.sin(angle) * field
+		fieldy += np.cos(angle) * field
+	totalfield = math.sqrt(fieldx**2 + fieldy**2)
+	return totalfield
+
 def error_func(a, b):
 	#return abs(a - b)
 	return (a-b)**2
 
 ######################################################################### SIMLUATION PARAMETERS #########################################################################
-#Dim 1
-TRAIN_CASE_NUM = 1000
-TEST_CASE_NUM = 1
 
-#Dim 2
-TRAIN_SET_NUM = 500 #Number of random points to generate for test data
-TEST_SET_NUM = 50 #Grid resolution for test data map
+### POINT CHARGE PARAMETERS ###
+NUM_POTENTIAL_CHARGES = 10
+NUM_CHARGES = 1
+CHARGE_VALUE = 1
+EXCLUSION_DIST = 0.25
 
-#Dim 3
-INPUT_SIZE = 2 #[x,y]
-OUTPUT_SIZE = 1 #[Result]
-
+### MAP PARAMETERS ###
 xrange = [-3.0, 3.0] #Overall X range of search space
 yrange = [-3.0, 3.0] #Overall Y range of search space
 
+### DATA STRUCTURE PARAMETERS ###
+#Dim 1 (Number of maps to test)
+TRAIN_CASE_NUM = 10
+TEST_CASE_NUM = 1
+
+#Dim 2 (Points per map)
+TEST_SET_NUM = 50 #Grid resolution for test data map
+TRAIN_SET_NUM = TEST_SET_NUM * TEST_SET_NUM
+
+#Dim 3 (Info contained in each point)
+INPUT_SIZE = 3 #[x,y,charge]
+OUTPUT_SIZE = 1 #[field value]
+
+### NEURAL NETWORK PARAMETERS ###
 LEARNING_RATE = 0.1
-N_NODES = [100] #Neural network topology
+N_NODES = [100, 100] #Neural network topology
 
 TRAIN_MAX_ITER = 10000 #Maximum iterations for training cycle
 TRAIN_ERR_THRESH = 1E-3 #Error threshold for training cycle
+
 ######################################################################### GENERATE SIMULATION DATA #########################################################################
 #Scope for calculation space
 xscope = xrange[1] - xrange[0]
@@ -50,100 +84,82 @@ test_out = []
 plotx = []
 ploty = []
 plotz = []
-'''
-#Train set generation
+
+#Generate training set information
 for case in range(TRAIN_CASE_NUM):
 	print("Populating training: " + str(case + 1) + "/" + str(TRAIN_CASE_NUM))
+	#Add new case entry
 	train_in.append([])
 	train_out.append([])
-	ori_x = random.random() * 5.0
-	ori_y = random.random() * 5.0
-	train_in[case].append([ori_x, ori_y])
-	train_out[case].append([test_func(ori_x, ori_y, ori_x, ori_y)])
-	for set in range(TRAIN_SET_NUM - 1):
-		in_x = xrange[0] + (random.random() * xscope)
-		in_y = yrange[0] + (random.random() * yscope)
-		train_in[case].append([in_x, in_y])
-		train_out[case].append([test_func(in_x, in_y, ori_x, ori_y)])
-'''
+	#Generate new charges list
+	point_charges = []
+	for pc in range(NUM_CHARGES):
+		pc_x = xrange[0] + (random.random() * xscope)
+		pc_y = yrange[0] + (random.random() * yscope)
+		point_charges.append([pc_x, pc_y, CHARGE_VALUE])
+		train_in[case].append([pc_x, pc_y, CHARGE_VALUE])
+		train_out[case].append([0.0])
+	#Put in zero-fill for missing charges
+	for mc in range(NUM_POTENTIAL_CHARGES - NUM_CHARGES):
+		train_in[case].append([0.0, 0.0, 0.0])
+		train_out[case].append([0.0])
+	#Populate the actual sample map
+	for i in range(TRAIN_SET_NUM):
+		fp_x = xrange[0] + (random.random() * xscope)
+		fp_y = yrange[0] + (random.random() * yscope)
+		fval = multichargefieldstrength(EXCLUSION_DIST, fp_x, fp_y, point_charges)
+		train_in[case].append([fp_x, fp_y, 0.0])
+		train_out[case].append([fval])
+
+#Generate testing set information
 for case in range(TEST_CASE_NUM):
 	print("Populating test: " + str(case + 1) + "/" + str(TEST_CASE_NUM))
+	#Add new case entry
 	plotx.append([])
 	ploty.append([])
 	plotz.append([])
 	test_in.append([])
 	test_out.append([])
-	#ori_x = random.random() * 5.0
-	#ori_y = random.random() * 5.0
-	ori_x = 0.0
-	ori_y = 0.0
+	#Generate new chages list
+	point_charges = []
+	for pc in range(NUM_CHARGES):
+		pc_x = xrange[0] + (random.random() * xscope)
+		pc_y = yrange[0] + (random.random() * yscope)
+		point_charges.append([pc_x, pc_y, CHARGE_VALUE])
+		test_in[case].append([pc_x, pc_y, CHARGE_VALUE])
+		test_out[case].append([0.0])
+	#Put in zero-fill for missing charges
+	for mc in range(NUM_POTENTIAL_CHARGES - NUM_CHARGES):
+		test_in[case].append([0.0, 0.0, 0.0])
+		test_out[case].append([0.0])
+
+	#Populate map grid
 	for j in range(TEST_SET_NUM):
 		plotx[case].append([])
 		ploty[case].append([])
 		plotz[case].append([])
 		for i in range(TEST_SET_NUM):
-			in_x = xrange[0] + (i * xstep)
-			in_y = yrange[0] + (j * ystep)
-			res = test_func(in_x, in_y, ori_x, ori_y)
+			fp_x = xrange[0] + (i * xstep)
+			fp_y = yrange[0] + (j * ystep)
+			fval = multichargefieldstrength(EXCLUSION_DIST, fp_x, fp_y, point_charges)
 
-			plotx[case][j].append(in_x)
-			ploty[case][j].append(in_y)
-			plotz[case][j].append(res)
+			plotx[case][j].append(fp_x)
+			ploty[case][j].append(fp_y)
+			plotz[case][j].append(fval)
 
-			test_in[case].append([in_x, in_y])
-			test_out[case].append([res])
+			test_in[case].append([fp_x, fp_y, 0.0])
+			test_out[case].append([fval])
 
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-ax.plot_wireframe(plotx[0], ploty[0], plotz[0], rstride = 5, cstride = 5, color = 'g', label = 'Corr')
-ax.legend()
-plt.show()
-exit()
-'''
-#Scope for calculation space
-xscope = xrange[1] - xrange[0]
-yscope = yrange[1] - yrange[0]
-
-
-#Step resolution for test grid generation
-xstep = xscope / TEST_RES
-ystep = yscope / TEST_RES
-
-particles.append([2.0, 2.0, 1.0])
-particles.append([-2.0, -2.0, 1.0])
-#Generate training dataset
-for i in range (TRAIN_RES):
-	xpos = xrange[0] + (random.random() * xscope)
-	ypos = yrange[0] + (random.random() * yscope)
-	train_in.append([xpos, ypos, 0.0])
-	train_out.append([multichargefieldstrength(exclusiondist, xpos, ypos, particles)])
-
-#Generate test grid for later validation
-for j in range(TEST_RES):
-	plotx.append([])
-	ploty.append([])
-	plotz.append([])
-	for i in range(TEST_RES):
-		xpos = xrange[0] + (i * xstep)
-		ypos = yrange[0] + (j * ystep)
-		plotx[j].append(xpos)
-		ploty[j].append(ypos)
-		test_in.append([xpos, ypos, 0.0])
-
-		plotz[j].append(multichargefieldstrength(exclusiondist, xpos, ypos, particles))
-		test_out.append([multichargefieldstrength(exclusiondist, xpos, ypos, particles)])
-'''
 ######################################################################### MACHINE LEARNING SECTION ########################################################################
-
 #Start all the Tensorflow stuff
 import tensorflow as tf
 
-x = tf.placeholder(tf.float32, shape=[None, INPUT_SIZE], name='x')
-y = tf.placeholder(tf.float32, shape=[None, OUTPUT_SIZE], name='y')
+x = tf.placeholder(tf.float32, shape=[None, None, INPUT_SIZE], name='x')
+y = tf.placeholder(tf.float32, shape=[None, None, OUTPUT_SIZE], name='y')
 
 def build_neural_network(data):
-	input_layer = {'weights': tf.Variable(tf.random_normal([INPUT_SIZE, N_NODES[0]])),
-				   'biases': tf.Variable(tf.random_normal([N_NODES[0]]))}
+	input_layer = {'weights': tf.Variable(tf.random_normal([INPUT_SIZE, N_NODES[0], N_NODES[0]])),
+				   'biases': tf.Variable(tf.random_normal([N_NODES[0], N_NODES[0]]))}
 	li = tf.add(tf.matmul(data, input_layer['weights']), input_layer['biases'])
 	li = tf.nn.relu(li)
 
@@ -189,6 +205,8 @@ def train_neural_network(x):
 
 	testvals = prediction.eval({x:test_in}, sess)
 	
+	#Harvest predicted Z values
+	'''
 	calcz = []
 	for case in range(TEST_CASE_NUM):
 		calcz.append([])
@@ -196,6 +214,13 @@ def train_neural_network(x):
 			calcz[case].append([])
 			for i in range(TEST_SET_NUM):
 				calcz[case][j].append(testvals[case][(j * TEST_RES) + i][0])
-
+	'''
+	#Display plots
+	for i in range(TEST_CASE_NUM):
+		fig = plt.figure()
+		ax = fig.add_subplot(111, projection='3d')
+		ax.plot_wireframe(plotx[i][NUM_CHARGES:(NUM_CHARGES + TRAIN_SET_NUM)], ploty[i][NUM_CHARGES:(NUM_CHARGES + TRAIN_SET_NUM)], plotz[i][NUM_CHARGES:(NUM_CHARGES + TRAIN_SET_NUM)], rstride = 5, cstride = 5, color = 'g', label = ('Corr[' + str(i) + ']'))
+		ax.legend()
+		plt.show()
 			
 train_neural_network(x)
