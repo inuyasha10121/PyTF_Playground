@@ -5,65 +5,43 @@ import math
 import random
 import sys
 
-def test_func(posx, posy, chargex, chargey, chargeval):
-	dist = math.sqrt((posx - chargex)**2 + (posy-chargey)**2)
-	return chargeval / dist
-
-#Function for calculating the field strength at a point from multiple charged particles
-def multichargefieldstrength(excdist, posx, posy, particles):
-	fieldx = 0.0
-	fieldy = 0.0
-	for particle in particles: #Cycle through each particle
-		distx = posx - particle[0]
-		disty = posy - particle[1]
-		dist = math.sqrt(distx**2 + disty**2) #Get the distance from the point to particle in question
-		if(dist < excdist): #If we are ever in an exclusion zone, return 0 to avoid massive field strengths
-			return 0.0
-		angle = np.arctan(disty/distx) #Calculate the key angle of the field vector
-		if(distx < 0.0): #If we are in the negative x, we need to tweak the angle
-			angle += np.pi
-		field = particle[2] / dist #Calculate the field strength of the vector (NOTE: This might need to be made negative, depending on how the math works out)
-		#Add the vector components to the overall field strength components
-		fieldx += np.sin(angle) * field
-		fieldy += np.cos(angle) * field
-	totalfield = math.sqrt(fieldx**2 + fieldy**2)
-	return totalfield
-
-
+def test_func(in_x, in_y, ori_x, ori_y):
+	return (np.sin(in_x - ori_x) + np.cos(in_y - ori_y))
 
 def error_func(a, b):
 	#return abs(a - b)
 	return (a-b)**2
 
 ######################################################################### SIMLUATION PARAMETERS #########################################################################
+#Dim 1
+TRAIN_CASE_NUM = 1000
+TEST_CASE_NUM = 1
 
-'''
-chargex = 1.0
-chargey = 1.0
-'''
-NUM_CHARGE_PARTICLES = 1 #How many charged particles to include in the simulations
-chargeval = 1.0 #Charge value for all charged particles
-exclusiondist = 0.25 #Distance around charged particles to exclude test points
+#Dim 2
+TRAIN_SET_NUM = 500 #Number of random points to generate for test data
+TEST_SET_NUM = 50 #Grid resolution for test data map
+
+#Dim 3
+INPUT_SIZE = 2 #[x,y]
+OUTPUT_SIZE = 1 #[Result]
 
 xrange = [-3.0, 3.0] #Overall X range of search space
 yrange = [-3.0, 3.0] #Overall Y range of search space
-
-TRAIN_RES = 1000 #Number of random points to generate for test data
-TEST_RES = 50 #Grid resolution for test data map
 
 LEARNING_RATE = 0.1
 N_NODES = [100] #Neural network topology
 
 TRAIN_MAX_ITER = 10000 #Maximum iterations for training cycle
 TRAIN_ERR_THRESH = 1E-3 #Error threshold for training cycle
-
-INPUT_SIZE = 3 #[X coord, Y coord, Field value]
-#NOTE: Charge 0 indicates a field point.
-OUTPUT_SIZE = 1 #[Field Strength]
-
 ######################################################################### GENERATE SIMULATION DATA #########################################################################
+#Scope for calculation space
+xscope = xrange[1] - xrange[0]
+yscope = yrange[1] - yrange[0]
 
-particles = []
+#Step resolution for test grid generation
+xstep = xscope / TEST_SET_NUM
+ystep = yscope / TEST_SET_NUM
+
 train_in = []
 train_out = []
 test_in = []
@@ -72,7 +50,56 @@ test_out = []
 plotx = []
 ploty = []
 plotz = []
+'''
+#Train set generation
+for case in range(TRAIN_CASE_NUM):
+	print("Populating training: " + str(case + 1) + "/" + str(TRAIN_CASE_NUM))
+	train_in.append([])
+	train_out.append([])
+	ori_x = random.random() * 5.0
+	ori_y = random.random() * 5.0
+	train_in[case].append([ori_x, ori_y])
+	train_out[case].append([test_func(ori_x, ori_y, ori_x, ori_y)])
+	for set in range(TRAIN_SET_NUM - 1):
+		in_x = xrange[0] + (random.random() * xscope)
+		in_y = yrange[0] + (random.random() * yscope)
+		train_in[case].append([in_x, in_y])
+		train_out[case].append([test_func(in_x, in_y, ori_x, ori_y)])
+'''
+for case in range(TEST_CASE_NUM):
+	print("Populating test: " + str(case + 1) + "/" + str(TEST_CASE_NUM))
+	plotx.append([])
+	ploty.append([])
+	plotz.append([])
+	test_in.append([])
+	test_out.append([])
+	#ori_x = random.random() * 5.0
+	#ori_y = random.random() * 5.0
+	ori_x = 0.0
+	ori_y = 0.0
+	for j in range(TEST_SET_NUM):
+		plotx[case].append([])
+		ploty[case].append([])
+		plotz[case].append([])
+		for i in range(TEST_SET_NUM):
+			in_x = xrange[0] + (i * xstep)
+			in_y = yrange[0] + (j * ystep)
+			res = test_func(in_x, in_y, ori_x, ori_y)
 
+			plotx[case][j].append(in_x)
+			ploty[case][j].append(in_y)
+			plotz[case][j].append(res)
+
+			test_in[case].append([in_x, in_y])
+			test_out[case].append([res])
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.plot_wireframe(plotx[0], ploty[0], plotz[0], rstride = 5, cstride = 5, color = 'g', label = 'Corr')
+ax.legend()
+plt.show()
+exit()
+'''
 #Scope for calculation space
 xscope = xrange[1] - xrange[0]
 yscope = yrange[1] - yrange[0]
@@ -82,14 +109,8 @@ yscope = yrange[1] - yrange[0]
 xstep = xscope / TEST_RES
 ystep = yscope / TEST_RES
 
-'''
-for i in range(NUM_CHARGE_PARTICLES):
-	xpos = xrange[0] + (random.random() * xscope)
-	ypos = yrange[0] + (random.random() * yscope)
-	charge = chargeval
-	particles.append([xpos, ypos, charge])
-'''
-particles.append([1.0, 1.0, 1.0])
+particles.append([2.0, 2.0, 1.0])
+particles.append([-2.0, -2.0, 1.0])
 #Generate training dataset
 for i in range (TRAIN_RES):
 	xpos = xrange[0] + (random.random() * xscope)
@@ -111,7 +132,7 @@ for j in range(TEST_RES):
 
 		plotz[j].append(multichargefieldstrength(exclusiondist, xpos, ypos, particles))
 		test_out.append([multichargefieldstrength(exclusiondist, xpos, ypos, particles)])
-
+'''
 ######################################################################### MACHINE LEARNING SECTION ########################################################################
 
 #Start all the Tensorflow stuff
@@ -167,30 +188,14 @@ def train_neural_network(x):
 				break
 
 	testvals = prediction.eval({x:test_in}, sess)
-
-	calcz = []
-	for j in range(TEST_RES):
-		calcz.append([])
-		for i in range(TEST_RES):
-			calcz[j].append(testvals[(j * TEST_RES) + i][0])
 	
-	#Calculate average error
-	avgerror = 0.0
-	for j in range(TEST_RES):
-		for i in range(TEST_RES):
-			cz = calcz[i][j]
-			pz = plotz[i][j]
-			currerror = error_func(cz, pz)
+	calcz = []
+	for case in range(TEST_CASE_NUM):
+		calcz.append([])
+		for j in range(TEST_SET_NUM):
+			calcz[case].append([])
+			for i in range(TEST_SET_NUM):
+				calcz[case][j].append(testvals[case][(j * TEST_RES) + i][0])
 
-			avgerror += currerror
-	avgerror /= (TEST_RES * TEST_RES)
-	print("Average test distance error: %f"%(avgerror))
-
-	fig = plt.figure()
-	ax = fig.add_subplot(111, projection='3d')
-	ax.plot_wireframe(plotx, ploty, plotz, rstride=5, cstride=5, color='g', label='Corr')
-	ax.plot_wireframe(plotx, ploty, calcz, rstride=5, cstride=5, color='r', label='Calc')
-	ax.legend()
-	plt.show()
-		
+			
 train_neural_network(x)

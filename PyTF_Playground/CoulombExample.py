@@ -8,62 +8,32 @@ import sys
 def test_func(posx, posy, chargex, chargey, chargeval):
 	dist = math.sqrt((posx - chargex)**2 + (posy-chargey)**2)
 	return chargeval / dist
-
-#Function for calculating the field strength at a point from multiple charged particles
-def multichargefieldstrength(excdist, posx, posy, particles):
-	fieldx = 0.0
-	fieldy = 0.0
-	for particle in particles: #Cycle through each particle
-		distx = posx - particle[0]
-		disty = posy - particle[1]
-		dist = math.sqrt(distx**2 + disty**2) #Get the distance from the point to particle in question
-		if(dist < excdist): #If we are ever in an exclusion zone, return 0 to avoid massive field strengths
-			return 0.0
-		angle = np.arctan(disty/distx) #Calculate the key angle of the field vector
-		if(distx < 0.0): #If we are in the negative x, we need to tweak the angle
-			angle += np.pi
-		field = particle[2] / dist #Calculate the field strength of the vector (NOTE: This might need to be made negative, depending on how the math works out)
-		#Add the vector components to the overall field strength components
-		fieldx += np.sin(angle) * field
-		fieldy += np.cos(angle) * field
-	totalfield = math.sqrt(fieldx**2 + fieldy**2)
-	return totalfield
-
-
+	#return np.sin(posx * np.cos(posy))
+	#return np.sin(a)
 
 def error_func(a, b):
-	#return abs(a - b)
-	return (a-b)**2
+	return abs(a - b)
 
-######################################################################### SIMLUATION PARAMETERS #########################################################################
+chargex = 0.0
+chargey = 0.0
+chargeval = 1.0
+exclusiondist = 0.25
 
-'''
-chargex = 1.0
-chargey = 1.0
-'''
-NUM_CHARGE_PARTICLES = 1 #How many charged particles to include in the simulations
-chargeval = 1.0 #Charge value for all charged particles
-exclusiondist = 0.25 #Distance around charged particles to exclude test points
+xrange = [-3.0, 3.0]
+yrange = [-3.0, 3.0]
 
-xrange = [-3.0, 3.0] #Overall X range of search space
-yrange = [-3.0, 3.0] #Overall Y range of search space
-
-TRAIN_RES = 1000 #Number of random points to generate for test data
-TEST_RES = 50 #Grid resolution for test data map
+TRAIN_RES = 1000
+TEST_RES = 50
 
 LEARNING_RATE = 0.1
-N_NODES = [100] #Neural network topology
+N_NODES = [100]
 
-TRAIN_MAX_ITER = 10000 #Maximum iterations for training cycle
-TRAIN_ERR_THRESH = 1E-3 #Error threshold for training cycle
+TRAIN_MAX_ITER = 10000
+TRAIN_ERR_THRESH = 1E-3
 
-INPUT_SIZE = 3 #[X coord, Y coord, Field value]
-#NOTE: Charge 0 indicates a field point.
-OUTPUT_SIZE = 1 #[Field Strength]
+INPUT_SIZE = 2
+OUTPUT_SIZE = 1
 
-######################################################################### GENERATE SIMULATION DATA #########################################################################
-
-particles = []
 train_in = []
 train_out = []
 test_in = []
@@ -73,31 +43,11 @@ plotx = []
 ploty = []
 plotz = []
 
-#Scope for calculation space
 xscope = xrange[1] - xrange[0]
 yscope = yrange[1] - yrange[0]
 
-
-#Step resolution for test grid generation
 xstep = xscope / TEST_RES
 ystep = yscope / TEST_RES
-
-'''
-for i in range(NUM_CHARGE_PARTICLES):
-	xpos = xrange[0] + (random.random() * xscope)
-	ypos = yrange[0] + (random.random() * yscope)
-	charge = chargeval
-	particles.append([xpos, ypos, charge])
-'''
-particles.append([1.0, 1.0, 1.0])
-#Generate training dataset
-for i in range (TRAIN_RES):
-	xpos = xrange[0] + (random.random() * xscope)
-	ypos = yrange[0] + (random.random() * yscope)
-	train_in.append([xpos, ypos, 0.0])
-	train_out.append([multichargefieldstrength(exclusiondist, xpos, ypos, particles)])
-
-#Generate test grid for later validation
 for j in range(TEST_RES):
 	plotx.append([])
 	ploty.append([])
@@ -107,12 +57,41 @@ for j in range(TEST_RES):
 		ypos = yrange[0] + (j * ystep)
 		plotx[j].append(xpos)
 		ploty[j].append(ypos)
-		test_in.append([xpos, ypos, 0.0])
+		test_in.append([xpos, ypos])
+		
+		dist = math.sqrt((xpos - chargex)**2 + (ypos-chargex)**2)
+		if dist > exclusiondist:
+			plotz[j].append(test_func(xpos, ypos, chargex, chargey, chargeval))
+			test_out.append([test_func(xpos, ypos, chargex, chargey, chargeval)])
+		else:
+			plotz[j].append(0.0)
+			test_out.append([0.0])
 
-		plotz[j].append(multichargefieldstrength(exclusiondist, xpos, ypos, particles))
-		test_out.append([multichargefieldstrength(exclusiondist, xpos, ypos, particles)])
 
-######################################################################### MACHINE LEARNING SECTION ########################################################################
+
+for i in range (TRAIN_RES):
+	xpos = xrange[0] + (random.random() * xscope)
+	ypos = yrange[0] + (random.random() * yscope)
+	train_in.append([xpos, ypos])
+
+	dist = math.sqrt((xpos - chargex)**2 + (ypos-chargex)**2)
+	if dist > exclusiondist:
+		train_out.append([test_func(xpos, ypos, chargex, chargey, chargeval)])
+	else:
+		train_out.append([0.0])
+
+	
+
+'''
+train_in  = [[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1], [1, 0, 0], [1, 0, 1],
+			  [1, 1, 0], [1, 1, 1]]
+train_out = [[0, 0, 1], [0, 1, 0], [0, 1, 1], [1, 0, 0], [1, 0, 1], [1, 1, 0], [1, 1, 1], [0, 0, 0]]
+#train_out = [[0], [0], [0], [1], [0], [1], [1], [0]]
+test_in  = [[0, 1, 0], [0, 1, 1], [0, 0, 1], [1, 1, 1], [1, 0, 1],
+			   [1, 0, 0], [0, 0, 0], [1, 1, 0]]
+test_out = [[0, 1, 1], [1, 0, 0], [0, 1, 0], [0, 0, 0], [1, 1, 0], [1, 0, 1], [0, 0, 1], [1, 1, 1]]
+#test_out = [[0], [1], [0], [1], [1], [0], [1], [0]]
+'''
 
 #Start all the Tensorflow stuff
 import tensorflow as tf
