@@ -96,27 +96,63 @@ test_out = [[0, 1, 1], [1, 0, 0], [0, 1, 0], [0, 0, 0], [1, 1, 0], [1, 0, 1], [0
 #Start all the Tensorflow stuff
 import tensorflow as tf
 
+def variable_summaries(var):
+	with tf.name_scope('summaries'):
+		mean = tf.reduce_mean(var)
+		tf.summary.scalar('mean', mean)
+		with tf.name_scope('stddev'):
+			stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+		tf.summary.scalar('stddev', stddev)
+		tf.summary.scalar('max',tf.reduce_max(var))
+		tf.summary.scalar('min',tf.reduce_min(var))
+		tf.summary.histogram('histogram',var)
+
 x = tf.placeholder(tf.float32, shape=[None, INPUT_SIZE], name='x')
 y = tf.placeholder(tf.float32, shape=[None, OUTPUT_SIZE], name='y')
 
 def build_neural_network(data):
-	input_layer = {'weights': tf.Variable(tf.random_normal([INPUT_SIZE, N_NODES[0]])),
-				   'biases': tf.Variable(tf.random_normal([N_NODES[0]]))}
-	li = tf.add(tf.matmul(data, input_layer['weights']), input_layer['biases'])
-	li = tf.nn.relu(li)
+	with tf.name_scope("input_layer"):
+		input_layer = {'weights': tf.Variable(tf.random_normal([INPUT_SIZE, N_NODES[0]])),
+					   'biases': tf.Variable(tf.random_normal([N_NODES[0]]))}
+		with tf.name_scope("weights"):
+			variable_summaries(input_layer['weights'])
+		with tf.name_scope("biases"):
+			variable_summaries(input_layer['biases'])
+		with tf.name_scope("line_func"):
+			li = tf.add(tf.matmul(data, input_layer['weights']), input_layer['biases'])
+			tf.summary.histogram('pre_activations', li)
+		lir = tf.nn.relu(li, name='activation')
+		tf.summary.histogram('activations', lir)
 
-	hidden_layer_list = [li]
+	hidden_layer_list = [lir]
 	for nodecount in range(len(N_NODES) - 1):
-		hidden_layer = {'weights': tf.Variable(tf.random_normal([N_NODES[nodecount], N_NODES[nodecount + 1]])),
-						'biases': tf.Variable(tf.random_normal([N_NODES[nodecount + 1]]))}
-		lh = tf.add(tf.matmul(hidden_layer_list[len(hidden_layer_list) - 1], hidden_layer['weights']), hidden_layer['biases'])
-		tf.nn.relu(lh)
-		hidden_layer_list.append(lh)
+		with tf.name_scope("hidden_layer_" + str(nodecount)):
+			hidden_layer = {'weights': tf.Variable(tf.random_normal([N_NODES[nodecount], N_NODES[nodecount + 1]])),
+				'biases': tf.Variable(tf.random_normal([N_NODES[nodecount + 1]]))}
 
-	output_layer = {'weights': tf.Variable(tf.random_normal([N_NODES[len(N_NODES) - 1], OUTPUT_SIZE])),
-					'biases': tf.Variable(tf.random_normal([OUTPUT_SIZE]))}
+			with tf.name_scope("weights"):
+				variable_summaries(hidden_layer['weights'])
+			with tf.name_scope("biases"):
+				variable_summaries(hidden_layer['biases'])
+			with tf.name_scope("line_func"):
+				lh = tf.add(tf.matmul(hidden_layer_list[len(hidden_layer_list) - 1], hidden_layer['weights']), hidden_layer['biases'])
+				tf.summary.histogram('pre_activations', lh)
+			lhr = tf.nn.relu(lh, name='activation')
+			tf.summary.histogram('activations', lhr)
+		hidden_layer_list.append(lhr)
 
-	output = tf.add(tf.matmul(hidden_layer_list[len(hidden_layer_list) - 1], output_layer['weights']), output_layer['biases'])
+
+	with tf.name_scope("output_layer"):
+		output_layer = {'weights': tf.Variable(tf.random_normal([N_NODES[len(N_NODES) - 1], OUTPUT_SIZE])),
+						'biases': tf.Variable(tf.random_normal([OUTPUT_SIZE]))}
+		with tf.name_scope("weights"):
+			variable_summaries(output_layer['weights'])
+		with tf.name_scope("biases"):
+			variable_summaries(output_layer['biases'])
+		with tf.name_scope("line_func"):
+			output = tf.add(tf.matmul(hidden_layer_list[len(hidden_layer_list) - 1], output_layer['weights']), output_layer['biases'])
+			tf.summary.histogram('pre_activations', output)
+		tf.summary.histogram('activations', output)
 
 	return output
 
@@ -136,10 +172,15 @@ def train_neural_network(x):
 	optimizer = tf.train.AdamOptimizer().minimize(loss)
 	#optimizer = tf.train.RMSPropOptimizer(0.1).minimize(loss)
 	
+
+	merged = tf.summary.merge_all()
+	tensorboard_writer = tf.summary.FileWriter("D:/TensorFlow/logs/", sess.graph)
+
 	sess.run(tf.global_variables_initializer())
 	for i in range(TRAIN_MAX_ITER):
 		optimizer.run(feed_dict={x:train_in, y:train_out}, session=sess)
-		cost = sess.run(loss, feed_dict={x:train_in, y:train_out})
+		summary, cost = sess.run([merged, loss], feed_dict={x:train_in, y:train_out})
+		tensorboard_writer.add_summary(summary, i)
 		if(i % 100 == 0):
 			print("Step: %d, cost: %g"%(i, cost))
 			if(cost < TRAIN_ERR_THRESH):
